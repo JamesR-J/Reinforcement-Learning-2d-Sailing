@@ -2,7 +2,6 @@
 Using reinforcement learning to enable an agent to sail around the course
 
 
-# Spotify Playlist Creation using Running Cadence
 
 ## Overview
 As a runner it is always important to focus on and improve running form in order to increase your performance and to prevent injury. One of the most beneficial things you can do is run with a fast cadence. Not only does this lead to a faster pace but also the increased cadence causes your feet to land underneath you. This means you land on your fore foot rather than mid foot which is very beneficial for your muscles and bones. I always struggle to keep track of my cadence, and even with a running watch it's not fun to keep looking at it all the time!
