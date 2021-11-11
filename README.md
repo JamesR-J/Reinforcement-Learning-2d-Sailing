@@ -27,3 +27,8 @@ These changes greatly improved the models training.
 * Inverse RL - it would be an interesting idea to see what reward criteria this method creates and whether it would improve model performance
 * Dynamic wind direction and speed
 * Add the ability to foil, will add further complexity as foiling is dependant on boat velocity being great enough
+
+## Libraries:
+* Pygame
+* Tensorflow
+* Keras
