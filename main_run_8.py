@@ -7,6 +7,7 @@ from keras import Sequential
 from collections import deque
 from keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
+import torch
 
 from main_game_11 import Game
 from player_movement import moves
