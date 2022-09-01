@@ -1,3 +1,5 @@
+import argparse
+
 import gym
 import pygame
 from math import sin, cos, radians
@@ -102,11 +104,19 @@ class RewardGate:
 
 class Boat:
     def __init__(self, x, y, walls, rewardGates, args, width=10, height=15):
-        self.x = x
-        self.y = y
-        self.position = Vector2(x, y)
+        self.team_racing = args.team_racing
+        if self.team_racing:
+            self.x = 320
+            self.y = 620
+            self.angle = 30
+        else:
+            self.x = x
+            self.y = y
+            self.angle = -30
+        self.position = Vector2(self.x, self.y)
         self.speed = 0
-        self.angle = -30
+
+        self.max_ep_len = args.max_ep_len
 
         self.direction = get_direction(self.angle)
 
@@ -145,6 +155,8 @@ class Boat:
 
         self.continuous_action_space = args.has_continuous_action_space
         self.angle_adjust = 0
+        self.angle_multiplier = args.max_steer
+
 
     def reset(self):
         self.position = Vector2(self.x, self.y)
@@ -183,8 +195,7 @@ class Boat:
             self.rewardGates[self.rewardNo].active = False
             self.rewardNo += 1
             self.score += 1
-            self.reward = 10000 * ((
-                                               10000 - self.steps_between_gate) / 10000)  # 10000 is the max steps per episode, this creates a time pressure
+            self.reward = self.max_ep_len * ((self.max_ep_len - self.steps_between_gate) / self.max_ep_len)  # adds time pressure
             self.steps_between_gate = 0
             if self.rewardNo == len(self.rewardGates):
                 self.dist_between_gate = 100
@@ -210,11 +221,12 @@ class Boat:
 
         self.last_distance_reward_gate = self.directionToRewardGate.length()
 
-    """
-    checks every wall and if the car has hit a wall returns true    
-    """
+        return
 
     def hitAWall(self):
+        """
+        checks every wall and if the car has hit a wall returns true
+        """
         for wall in self.walls:
             if wall.hitCar(self):
                 return True
@@ -252,13 +264,12 @@ class Boat:
         # print(normalizedState)
         return np.array(normalizedState)
 
-    """
-    by creating lines in many directions from the car and getting the closest collision point of that line
-    we create  "vision vectors" which will allow the car to 'see' 
-    kinda like a sonar system
-    """
-
     def setVisionVectors(self):
+        """
+        by creating lines in many directions from the car and getting the closest collision point of that line
+        we create  "vision vectors" which will allow the car to 'see'
+        kinda like a sonar system
+        """
         h = self.height  # - 4
         w = self.width
         self.collisionLineDistances = []
@@ -285,12 +296,11 @@ class Boat:
 
         return self.position + ((rightVector * right) + (upVector * up))
 
-    """
-    returns the point of collision of a line (x1,y1,x2,y2) with the walls, 
-    if multiple walls are hit it returns the closest collision point
-    """
-
     def getCollisionPointOfClosestWall(self, x1, y1, x2, y2):
+        """
+        returns the point of collision of a line (x1,y1,x2,y2) with the walls,
+        if multiple walls are hit it returns the closest collision point
+        """
         minDist = 2 * displayWidth
         closestCollisionPoint = Vector2(0, 0)
         for wall in self.walls:
@@ -302,11 +312,10 @@ class Boat:
                 closestCollisionPoint = Vector2(collisionPoint)
         return closestCollisionPoint
 
-    """
-    calculates and stores the distance to the nearest wall given a vector 
-    """
-
     def setVisionVector(self, startX, startY, gamma):
+        """
+        calculates and stores the distance to the nearest wall given a vector
+        """
         collisionVectorDirection = self.direction.rotate(gamma)
         collisionVectorDirection = collisionVectorDirection.normalize() * self.vectorLength
         startingPoint = self.getPositionOnCarRelativeToCenter(startX, startY)
@@ -320,19 +329,18 @@ class Boat:
                 dist(startingPoint.x, startingPoint.y, collisionPoint.x, collisionPoint.y))
         self.lineCollisionPoints.append(collisionPoint)
 
-    """
-    shows dots where the collision vectors detect a wall 
-    """
-
     def showCollisionVectors(self, surface):
+        """
+        shows dots where the collision vectors detect a wall
+        """
         for point in self.lineCollisionPoints:
             if point != [0, 0]:
                 pygame.draw.line(surface, (131, 139, 139), (self.position.x, self.position.y), (point.x, point.y,), 1)
                 pygame.draw.circle(surface, (0, 0, 0), (point.x, point.y), 5)
 
-    def updateWithAction(self, actionNo):
+    def updateWithAction(self, actionNo, value_2):
         if self.continuous_action_space:
-            self.angle_adjust = actionNo
+            self.angle_adjust = actionNo * self.angle_multiplier
         else:
             self.turningLeft = False
             self.turningRight = False
@@ -357,11 +365,15 @@ class Boat:
                     totalReward -= 100000
                     # return
 
-                # totalReward += self.reward
+                if self.angle < 30 and self.angle > -30:
+                    totalReward -= 100
 
-                if self.score == 200:  # finishes game after 4 laps
+                # totalReward += self.reward
+                # add reward for making it not go in the no go zone
+
+                if self.score == 10:  # finishes game after one lap
                     self.dead = True
-                    # totalReward += 100000
+                    totalReward += 10000000 / value_2  # the shorter time step run the higher reward
 
                 self.checkRewardGates()
                 totalReward += self.reward
@@ -410,6 +422,8 @@ class Game(gym.Env):
         self.screen = pygame.display.set_mode((width, height))
         self.myfont = pygame.font.SysFont("monospace", 16)
 
+        self.team_racing = args.team_racing
+
         if player == 'Human':
             self.human = True
             self.clock = pygame.time.Clock()
@@ -426,7 +440,7 @@ class Game(gym.Env):
         self.boat = Boat(776, 640, self.walls, self.gates, args)
 
         if self.boat.continuous_action_space:
-            self.action_space = spaces.Box(low=-args.max_steer, high=args.max_steer, shape=(1,), dtype=np.float32).shape[0]
+            self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32).shape[0]
         else:
             self.action_space = 3
         self.state_space = 9
@@ -440,14 +454,27 @@ class Game(gym.Env):
         self.walls.append(Wall(-100, displayHeight, displayWidth + 100, displayHeight - 1))
 
     def set_gates(self):
-        self.gates.append(RewardGate(750, 600, 850, 600))
-        self.gates.append(RewardGate(810, 100, 860, 100))
-        self.gates.append(RewardGate(800, 90, 800, 40))
-        self.gates.append(RewardGate(350, 140, 350, 90))
-        self.gates.append(RewardGate(290, 150, 340, 150))
-        self.gates.append(RewardGate(290, 600, 340, 600))
-        self.gates.append(RewardGate(350, 610, 350, 660))
-        self.gates.append(RewardGate(699, 644, 699, 555))
+        if self.team_racing:
+            self.gates.append(RewardGate(260, 600, 340, 600))
+            self.gates.append(RewardGate(240, 100, 290, 100))
+            self.gates.append(RewardGate(300, 90, 300, 40))
+            self.gates.append(RewardGate(650, 90, 650, 40))
+            self.gates.append(RewardGate(660, 100, 710, 100))
+            self.gates.append(RewardGate(590, 600, 640, 600))
+            self.gates.append(RewardGate(650, 610, 650, 660))
+            self.gates.append(RewardGate(1000, 610, 1000, 660))
+            self.gates.append(RewardGate(1010, 600, 1060, 600))
+            self.gates.append(RewardGate(960, 100, 1040, 100))
+
+        else:
+            self.gates.append(RewardGate(750, 600, 850, 600))
+            self.gates.append(RewardGate(810, 100, 860, 100))
+            self.gates.append(RewardGate(800, 90, 800, 40))
+            self.gates.append(RewardGate(350, 140, 350, 90))
+            self.gates.append(RewardGate(290, 150, 340, 150))
+            self.gates.append(RewardGate(290, 600, 340, 600))
+            self.gates.append(RewardGate(350, 610, 350, 660))
+            self.gates.append(RewardGate(699, 644, 699, 555))
 
     def get_state(self):
         state = self.boat.getState()
@@ -455,8 +482,8 @@ class Game(gym.Env):
         return state
         pass
 
-    def step(self, action, value):
-        s, r, d, _ = self.boat.updateWithAction(action)
+    def step(self, action, value, value_2):
+        s, r, d, _ = self.boat.updateWithAction(action, value_2)
         self.render()
         if self.take_pics:
             self.save_pics(value)
@@ -484,11 +511,22 @@ class Game(gym.Env):
         rect = rotated.get_rect()
         self.screen.blit(rotated, self.boat.position - (rect.width / 2, rect.height / 2))
 
-        pygame.draw.circle(self.screen, (0, 0, 0), (800, 100), 4)
-        pygame.draw.circle(self.screen, (0, 0, 0), (350, 150), 4)
-        pygame.draw.circle(self.screen, (0, 0, 0), (350, 600), 4)
-        pygame.draw.circle(self.screen, (0, 0, 0), (700, 650), 4)
-        pygame.draw.circle(self.screen, (0, 0, 0), (700, 550), 4)
+        if self.team_racing:
+            pygame.draw.circle(self.screen, (0, 0, 0), (250, 600), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (350, 600), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (300, 100), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (650, 100), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (650, 600), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (1000, 600), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (950, 100), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (1050, 100), 4)
+
+        else:
+            pygame.draw.circle(self.screen, (0, 0, 0), (800, 100), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (350, 150), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (350, 600), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (700, 650), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (700, 550), 4)
 
         speedtext = self.myfont.render("Speed = " + str(int(self.boat.speed * 5)), 1, (0, 0, 0))
         self.screen.blit(speedtext, (7, 10))
@@ -535,8 +573,16 @@ class Game(gym.Env):
         pygame.quit()
 
 if __name__ == '__main__':
-    env = Game('Human')
-    time_steps = 1000  # 800
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--name', default='Test_1')
+    parser.add_argument('--has_continuous_action_space', default=True)
+    parser.add_argument('--max_steer', default=10)
+    parser.add_argument('--max_ep_len', default=10000)
+    parser.add_argument('--team_racing', default=True)
+    # parser.add_argument('--team_racing', default=False)
+    args = parser.parse_args()
+    env = Game('Human', args)
+    time_steps = 10000  # 800
     for _ in range(time_steps):
         s, r, d, _ = env.step(random.randint(0, 2), 'e')
         # print(f'state: {s}')
@@ -544,11 +590,4 @@ if __name__ == '__main__':
         env.render()
     # env.close()
 
-    # env = Game('ai')
-    # time_steps = 5000#800
-    # for _ in range(time_steps):
-    #     s, r, d, _ = env.step(moves[_], 'e')
-    #     #print(f'state: {s}')
-    #     #print(f'reward: {r}')
-    #     env.render()
-    # #env.close()
+

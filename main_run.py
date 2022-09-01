@@ -127,9 +127,6 @@ def train(args, env, pic_episode_list):
 
     # training loop
     while time_step <= args.max_ep_num * args.max_ep_len:
-
-        value = 0
-
         state = env.reset()
         # if e in pic_episode_list:   # was a for loop with e being the i
         #     env.take_pics = True
@@ -140,7 +137,7 @@ def train(args, env, pic_episode_list):
 
             # select action with policy
             action = agent.select_action(state)
-            state, reward, done, _ = env.step(action, value)
+            state, reward, done, _ = env.step(action, i_episode, t)
 
             # saving reward and is_terminals
             agent.buffer.rewards.append(reward)
@@ -202,8 +199,6 @@ def train(args, env, pic_episode_list):
 
         i_episode += 1
 
-        value += 1
-
     log_f.close()
     env.close()
 
@@ -240,7 +235,8 @@ if __name__ == '__main__':
     parser.add_argument('--action_std_decay_rate', default=0.05)
     parser.add_argument('--min_action_std', default=0.1)
     parser.add_argument('--action_std_decay_freq', default=2.5e5)
-    parser.add_argument('--max_steer', default=60)
+    parser.add_argument('--max_steer', default=10)
+    parser.add_argument('--team_racing', default=True)
     args = parser.parse_args()
     
     pic_episode_list = [0, 9,   19,   29,   39,   49,   59,   69,   79,   89,   99,
