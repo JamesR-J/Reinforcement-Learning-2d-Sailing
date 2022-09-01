@@ -366,7 +366,7 @@ class Boat:
                     # return
 
                 if self.angle < 30 and self.angle > -30:
-                    totalReward -= 100
+                    totalReward -= 1000
 
                 # totalReward += self.reward
                 # add reward for making it not go in the no go zone
