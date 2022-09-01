@@ -121,8 +121,8 @@ class PPO:
 
         self.state_dim = env.state_space
         self.action_dim = env.action_space
-        self.lr_actor = args.learning_rate_actor
-        self.lr_critic = args.learning_rate_critic
+        self.lr_actor = args.lr_actor
+        self.lr_critic = args.lr_critic
 
         self.has_continuous_action_space = args.has_continuous_action_space
 
